@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Game</title>
+    <style>
+        /* Basic styles for the game board and UI */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(5, 50px);
+            grid-template-rows: repeat(5, 50px);
+            gap: 0; /* No gap between cells */
+            width: 250px;
+            margin: 20px auto;
+            border: 1px solid #000;
+        }
+
+        /* Individual cells styling for checkerboard pattern */
+        #game-board div {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Checkerboard pattern */
+        #game-board div:nth-child(odd) {
+            background-color: #1a1919; /* Light color for odd cells */
+        }
+
+        #game-board div:nth-child(even) {
+            background-color: #edf0f3; /* Dark color for even cells */
+        }
+
+        /* Player-specific styling */
+        .player1 {
+            color: rgb(43, 201, 249); /* Text color for Player 1 pieces */
+        }
+
+        .player2 {
+            color: rgb(239, 125, 188); /* Text color for Player 2 pieces */
+        }
+
+        /* Highlight selected cell */
+        .selected {
+            border: 2px solid rgb(227, 150, 227);
+            background-color: #e0e0e0; /* Slightly darker to indicate selection */
+        }
+
+        /* Highlight last move cells */
+        .highlight-last-move {
+            border: 2px solid lightgreen;
+        }
+
+        /* Styling for valid move buttons */
+        #valid-moves button {
+            margin: 2px;
+            padding: 5px 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none; /* Remove default border */
+            color: #fff; /* White text */
+        }
+
+        /* Alternate colors for move buttons */
+        #valid-moves button:nth-child(odd) {
+            background-color: rgb(7, 187, 247); /* Light blue for odd buttons */
+        }
+
+        #valid-moves button:nth-child(even) {
+            background-color: rgb(244, 7, 184); /* Light pink for even buttons */
+        }
+
+        /* Undo move button styling */
+        #undo-move {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: green; /* Green color */
+            color: white; /* White text */
+            border: none; /* Remove default border */
+        }
+
+        /* Move history styling */
+        #move-log {
+            text-align: left;
+            margin: 20px auto;
+            width: 250px;
+        }
+
+        /* Game over message styling */
+        #game-over-message {
+            color: red;
+            font-size: 20px;
+            margin-top: 20px;
+        }
+
+        /* Restart game button styling */
+        #restart-game {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* Timer styling */
+        #time-left {
+            margin-top: 10px;
+            font-size: 18px;
+            color: green;
+        }
+
+        /* Piece details styling */
+        #piece-details {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+
+        /* Move controls styling */
+        #move-controls button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Game</h1>
+    <div id="current-turn">Current Turn: player1</div>
+    <div id="game-board"></div>
+    <div id="piece-details"></div>
+    <div id="valid-moves"></div>
+    <div id="move-log"></div>
+    <button id="undo-move">Undo Move</button>
+    <div id="game-over-message" style="display:none;">
+        <p>Game Over! Winner: <span id="winner"></span></p>
+        <button id="restart-game">Restart Game</button>
+    </div>
+    <div>Time left: <span id="time-left">30</span> seconds</div>
+
+    <script>
+        // WebSocket connection to the server
+        const socket = new WebSocket('ws://localhost:8080');
+
+        let selectedCharacter = null;
+        let currentTurn = 'player1';
+        let moveHistory = [];
+
+        // Load sound effects
+        const moveSound = new Audio('move-sound.mp3'); // Ensure this file is in the project directory
+
+        // WebSocket event handlers
+        socket.onopen = () => {
+            console.log('Connected to server');
+            socket.send(JSON.stringify({ type: 'init', player: currentTurn }));
+        };
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            handleServerMessage(message);
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket Error: ', error);
+        };
+
+        socket.onclose = () => {
+            console.log('Disconnected from server');
+        };
+
+        // Handle server messages
+        function handleServerMessage(message) {
+            if (message.type === 'gameState') {
+                updateGameBoard(message.state);
+                updateTurnIndicator(message.state.turn);
+                updateMoveHistory(message.state.moves);
+            } else if (message.type === 'invalidMove') {
+                alert(`Invalid move: ${message.reason}`);
+            } else if (message.type === 'gameOver') {
+                showGameOverScreen(message.winner);
+            }
+        }
+
+        // Update game board
+        function updateGameBoard(state) {
+            const gameBoard = document.getElementById('game-board');
+            gameBoard.innerHTML = ''; // Clear current board
+
+            for (let row = 0; row < state.board.length; row++) {
+                for (let col = 0; col < state.board[row].length; col++) {
+                    const cell = document.createElement('div');
+                    const piece = state.board[row][col];
+                    if (piece) {
+                        cell.className = `player${piece.player === 'player1' ? '1' : '2'} ${piece.player}`;
+                        cell.innerText = piece.type; // Display piece type (e.g., P1, H1, etc.)
+                        cell.onclick = () => selectCharacter(piece, row, col); // Add click handler
+                    }
+                    gameBoard.appendChild(cell);
+                }
+            }
+
+            // Highlight last move
+            if (state.lastMove) {
+                const fromIndex = state.lastMove.from.row * 5 + state.lastMove.from.col;
+                const toIndex = state.lastMove.to.row * 5 + state.lastMove.to.col;
+                gameBoard.children[fromIndex].classList.add('highlight-last-move');
+                gameBoard.children[toIndex].classList.add('highlight-last-move');
+            }
+        }
+
+        // Handle character selection
+        function selectCharacter(piece, row, col) {
+            if (piece.player !== currentTurn) {
+                alert("It's not your turn or you selected the opponent's character.");
+                return;
+            }
+
+            selectedCharacter = { piece, row, col };
+            highlightSelectedCharacter(row, col);
+            showValidMoves(piece);
+
+            // Display piece details
+            const pieceDetailsDiv = document.getElementById('piece-details');
+            pieceDetailsDiv.innerHTML = `Selected Piece: ${piece.type} (Player: ${piece.player})<br>Valid Moves: ${getValidMoves(piece).join(', ')}`;
+        }
+
+        // Highlight selected character
+        function highlightSelectedCharacter(row, col) {
+            const gameBoard = document.getElementById('game-board');
+            const cells = gameBoard.children;
+            for (let i = 0; i < cells.length; i++) {
+                cells[i].classList.remove('selected');
+            }
+            cells[row * 5 + col].classList.add('selected');
+        }
+
+        // Display valid moves
+        function showValidMoves(piece) {
+            const validMovesDiv = document.getElementById('valid-moves');
+            validMovesDiv.innerHTML = ''; // Clear previous moves
+
+            const moves = getValidMoves(piece); // Assume this function calculates valid moves
+            moves.forEach((move, index) => {
+                const button = document.createElement('button');
+                button.innerText = move;
+                button.onclick = () => sendMove(move);
+
+                // Alternate button colors
+                button.style.backgroundColor = index % 2 === 0 ? 'rgb(7, 187, 247)' : 'rgb(244, 7, 184)';
+                
+                validMovesDiv.appendChild(button);
+            });
+        }
+
+        // Calculate valid moves (placeholder logic)
+        function getValidMoves(piece) {
+            // Logic to calculate valid moves based on piece type and position
+            if (piece.type === 'P') {
+                return ['L', 'R', 'F', 'B'];
+            } else if (piece.type === 'H1') {
+                return ['L', 'R', 'F', 'B'];
+            } else if (piece.type === 'H2') {
+                return ['FL', 'FR', 'BL', 'BR'];
+            } else if (piece.type === 'H3') {
+                return ['FL', 'FR', 'BL', 'BR', 'RF', 'RB', 'LF', 'LB'];
+            }
+            return [];
+        }
+
+        // Send move to the server
+        function sendMove(move) {
+            if (!selectedCharacter) return;
+
+            const moveData = {
+                type: 'move',
+                player: currentTurn,
+                piece: selectedCharacter.piece.type,
+                move: move
+            };
+
+            socket.send(JSON.stringify(moveData));
+            selectedCharacter = null; // Clear selected character
+            document.getElementById('valid-moves').innerHTML = ''; // Clear valid moves
+
+            moveSound.play(); // Play move sound
+        }
+
+        // Update turn indicator
+        function updateTurnIndicator(turn) {
+            currentTurn = turn;
+            document.getElementById('current-turn').innerText = `Current Turn: ${turn}`;
+            startTurnTimer(); // Start the timer when turn changes
+        }
+
+        // Show game over screen
+        function showGameOverScreen(winner) {
+            const gameOverMessage = document.getElementById('game-over-message');
+            gameOverMessage.style.display = 'block';
+            document.getElementById('winner').innerText = winner;
+            document.getElementById('restart-game').style.display = 'block';
+        }
+
+        // Undo last move
+        document.getElementById('undo-move').addEventListener('click', () => {
+            if (moveHistory.length > 0) {
+                const lastMove = moveHistory.pop();
+                socket.send(JSON.stringify({ type: 'undo', move: lastMove }));
+                updateMoveHistory(moveHistory); // Update the move log UI
+            } else {
+                alert("No move to undo!");
+            }
+        });
+
+        // Start a new game
+        document.getElementById('restart-game').addEventListener('click', () => {
+            socket.send(JSON.stringify({ type: 'restart' }));
+            location.reload(); // Reload the page to start a new game
+        });
+
+        // Update move history log
+        function updateMoveHistory(moves) {
+            const moveLog = document.getElementById('move-log');
+            moveLog.innerHTML = ''; // Clear existing log
+
+            moves.forEach(move => {
+                const li = document.createElement('li');
+                li.innerText = `Player ${move.player} moved ${move.piece.type} to ${move.move}`;
+                moveLog.appendChild(li);
+            });
+        }
+
+        // Timer setup
+        let turnTimeLeft = 30; // 30 seconds for each turn
+        let turnTimer;
+
+        function startTurnTimer() {
+            clearInterval(turnTimer);
+            turnTimeLeft = 30; // Reset timer for new turn
+            document.getElementById('time-left').innerText = turnTimeLeft;
+            turnTimer = setInterval(() => {
+                turnTimeLeft--;
+                document.getElementById('time-left').innerText = turnTimeLeft;
+                if (turnTimeLeft <= 0) {
+                    clearInterval(turnTimer);
+                    alert(`Time's up for ${currentTurn}!`);
+                    switchTurns(); // Automatically switch turns if time runs out
+                }
+            }, 1000);
+        }
+
+        // Switch turns
+        function switchTurns() {
+            currentTurn = currentTurn === 'player1' ? 'player2' : 'player1';
+            updateTurnIndicator(currentTurn);
+            startTurnTimer(); // Restart timer for new turn
+        }
+    </script>
+</body>
+</html>
+

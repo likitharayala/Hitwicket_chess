@@ -1,0 +1,109 @@
+/* General body styling */
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 20px;
+}
+
+/* Game board styling */
+#game-board {
+    display: grid;
+    grid-template-columns: repeat(5, 50px);
+    grid-template-rows: repeat(5, 50px);
+    gap: 0; /* No gap between cells */
+    width: 300px;
+    margin: 20px auto;
+    border: 1px solid #000;
+}
+
+/* Individual cells styling */
+#game-board div {
+    width: 40px;
+    height: 50px;
+    background-color: rgb(174, 236, 241); /* Default to white */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+/* Alternate row styling for checkerboard pattern */
+#game-board div:nth-child(odd) {
+    background-color: #f0f0f0; /* Light color for odd cells */
+}
+
+#game-board div:nth-child(even) {
+    background-color: #d0d0d0; /* Dark color for even cells */
+}
+
+/* Highlight selected cell */
+.selected {
+    border: 2px solid yellow;
+    background-color: #d0d0d0; /* Slightly darker to indicate selection */
+}
+
+/* Player-specific styling */
+.player1 {
+    color: blue; /* Text color for Player 1 pieces */
+}
+
+.player2 {
+    color: red; /* Text color for Player 2 pieces */
+}
+
+/* Highlight last move cells */
+.highlight-last-move {
+    border: 2px solid blue;
+}
+
+/* Styling for valid move buttons */
+#valid-moves button {
+    margin: 5px;
+    padding: 5px 10px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* Move history styling */
+#move-history {
+    text-align: left;
+    margin: 20px auto;
+    width: 300px;
+}
+
+/* Game over message styling */
+#game-over-message {
+    color: red;
+    font-size: 20px;
+    margin-top: 20px;
+}
+
+/* Restart game button styling */
+#restart-game {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* Timer styling */
+#turn-timer {
+    margin-top: 10px;
+    font-size: 18px;
+    color: green;
+}
+
+/* Piece details styling */
+#piece-details {
+    margin-top: 10px;
+    font-size: 16px;
+}
+
+/* Move controls styling */
+#move-controls button {
+    margin: 5px;
+    padding: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}
